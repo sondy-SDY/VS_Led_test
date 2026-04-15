@@ -21,7 +21,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "Trace.h"
+#include "Motor.h"
+#include "PID.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,42 +33,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
-// ============ 引脚定义 ============
-// 6路循迹传感器 (低电平=检测到黑线)
-#define S1_PIN  GPIO_PIN_12  // PB12 最左
-#define S2_PIN  GPIO_PIN_13  // PB13
-#define S3_PIN  GPIO_PIN_14  // PB14
-#define S4_PIN  GPIO_PIN_15  // PB15
-#define S5_PIN  GPIO_PIN_8   // PA8
-#define S6_PIN  GPIO_PIN_9   // PA9 最右
-
-#define S1_PORT GPIOB
-#define S2_PORT GPIOB
-#define S3_PORT GPIOB
-#define S4_PORT GPIOB
-#define S5_PORT GPIOA
-#define S6_PORT GPIOA
-
-// 左电机 (TIM3_CH1 = PA6)
-#define MOTOR_L_IN1_PIN  GPIO_PIN_0   // PB0
-#define MOTOR_L_IN2_PIN  GPIO_PIN_1   // PB1
-#define MOTOR_L_PORT     GPIOB
-
-// 右电机 (TIM3_CH2 = PA7)
-#define MOTOR_R_IN1_PIN  GPIO_PIN_10  // PB10
-#define MOTOR_R_IN2_PIN  GPIO_PIN_11  // PB11
-#define MOTOR_R_PORT     GPIOB
-
-// PWM参数
-#define PWM_MAX  999   // 对应100%占空比
-#define BASE_SPEED 400 // 基础速度 (0-999)
-
-// PID参数
-#define KP  80.0f
-#define KI  0.1f
-#define KD  200.0f
-#define MAX_I 100.0f
 
 /* USER CODE END PD */
 
@@ -91,10 +57,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
-
-void motor_set(int16_t left, int16_t right);
-float trace_get_error(void);
-void calc_pid(void);
 
 /* USER CODE END PFP */
 
@@ -319,72 +281,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-// 读取6路传感器，返回误差值
-float trace_get_error(void) {
-    // 低电平=检测到黑线=1
-    int s[6];
-    s[0] = (HAL_GPIO_ReadPin(S1_PORT, S1_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[1] = (HAL_GPIO_ReadPin(S2_PORT, S2_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[2] = (HAL_GPIO_ReadPin(S3_PORT, S3_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[3] = (HAL_GPIO_ReadPin(S4_PORT, S4_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[4] = (HAL_GPIO_ReadPin(S5_PORT, S5_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[5] = (HAL_GPIO_ReadPin(S6_PORT, S6_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-
-    // 权重: 左负右正
-    const int weights[6] = {-5, -3, -1, 1, 3, 5};
-    int sum = 0, count = 0;
-    for (int i = 0; i < 6; i++) {
-        if (s[i]) {
-            sum += weights[i];
-            count++;
-        }
-    }
-
-    if (count == 0) return prev_error; // 全部丢线，保持上次误差
-    return (float)sum / count;
-}
-
-void calc_pid(void) {
-    float P = error;
-    integral += error;
-    if (integral > MAX_I)  integral = MAX_I;
-    if (integral < -MAX_I) integral = -MAX_I;
-    float D = error - prev_error;
-    prev_error = error;
-    pid_val = KP * P + KI * integral + KD * D;
-}
-
-// 设置电机速度 (-PWM_MAX ~ +PWM_MAX)
-void motor_set(int16_t left, int16_t right) {
-    // 限幅
-    if (left  >  PWM_MAX) left  =  PWM_MAX;
-    if (left  < -PWM_MAX) left  = -PWM_MAX;
-    if (right >  PWM_MAX) right =  PWM_MAX;
-    if (right < -PWM_MAX) right = -PWM_MAX;
-
-    // 左电机
-    if (left >= 0) {
-        HAL_GPIO_WritePin(MOTOR_L_PORT, MOTOR_L_IN1_PIN, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(MOTOR_L_PORT, MOTOR_L_IN2_PIN, GPIO_PIN_RESET);
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, left);
-    } else {
-        HAL_GPIO_WritePin(MOTOR_L_PORT, MOTOR_L_IN1_PIN, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(MOTOR_L_PORT, MOTOR_L_IN2_PIN, GPIO_PIN_SET);
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, -left);
-    }
-
-    // 右电机
-    if (right >= 0) {
-        HAL_GPIO_WritePin(MOTOR_R_PORT, MOTOR_R_IN1_PIN, GPIO_PIN_SET);
-        HAL_GPIO_WritePin(MOTOR_R_PORT, MOTOR_R_IN2_PIN, GPIO_PIN_RESET);
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, right);
-    } else {
-        HAL_GPIO_WritePin(MOTOR_R_PORT, MOTOR_R_IN1_PIN, GPIO_PIN_RESET);
-        HAL_GPIO_WritePin(MOTOR_R_PORT, MOTOR_R_IN2_PIN, GPIO_PIN_SET);
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, -right);
-    }
-}
 
 /* USER CODE END 4 */
 
