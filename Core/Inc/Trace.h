@@ -19,5 +19,6 @@
 #define S6_PORT GPIOA
 
 float trace_get_error(void);
+uint8_t trace_is_line_lost(void);
 
 #endif /* __TRACE_H */

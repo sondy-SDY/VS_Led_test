@@ -2,6 +2,7 @@
 #define __MOTOR_H
 
 #include "main.h"
+#include <stdint.h>
 
 // 左电机 (TIM3_CH1 = PA6)
 #define MOTOR_L_IN1_PIN  GPIO_PIN_0   // PB0

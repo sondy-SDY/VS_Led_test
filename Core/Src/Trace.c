@@ -1,6 +1,7 @@
 #include "Trace.h"
 
-extern float prev_error;
+static float last_error = 0;
+static uint8_t line_lost = 0;
 
 // 读取6路传感器，返回误差值 (权重: 左负右正)
 float trace_get_error(void) {
@@ -21,6 +22,16 @@ float trace_get_error(void) {
         }
     }
 
-    if (count == 0) return prev_error; // 全部丢线，保持上次误差
-    return (float)sum / count;
+    if (count == 0) {
+        line_lost = 1;
+        return last_error;
+    }
+
+    line_lost = 0;
+    last_error = (float)sum / count;
+    return last_error;
+}
+
+uint8_t trace_is_line_lost(void) {
+    return line_lost;
 }
