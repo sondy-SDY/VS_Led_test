@@ -1,8 +1,5 @@
 {
     "cmake.cmakePath": "cube-cmake",
-    "cmake.configureArgs": [
-        "-DCMAKE_COMMAND=cube-cmake"
-    ],
     "cmake.preferredGenerators": [
         "Ninja"
     ],
@@ -14,5 +11,8 @@
     ],
     "stm32-for-vscode.openOCDPath": false,
     "stm32-for-vscode.makePath": false,
-    "stm32-for-vscode.armToolchainPath": false
+    "stm32-for-vscode.armToolchainPath": false,
+    "cmake.configureArgs": [
+        "-DCMAKE_COMMAND=cube-cmake"
+    ]
 }
