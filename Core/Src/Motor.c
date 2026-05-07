@@ -4,6 +4,9 @@ extern TIM_HandleTypeDef htim3;
 
 // 设置电机速度 (-PWM_MAX ~ +PWM_MAX)
 void motor_set(int16_t left, int16_t right) {
+    left += LEFT_TRIM;
+    right += RIGHT_TRIM;
+
     // 限幅
     if (left  >  PWM_MAX) left  =  PWM_MAX;
     if (left  < -PWM_MAX) left  = -PWM_MAX;

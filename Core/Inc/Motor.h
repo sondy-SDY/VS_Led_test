@@ -14,9 +14,16 @@
 #define MOTOR_R_IN2_PIN  GPIO_PIN_11  // PB11
 #define MOTOR_R_PORT     GPIOB
 
-// PWM参数
-#define PWM_MAX    999   // 对应100%占空比
-#define BASE_SPEED 400   // 基础速度 (0-999)
+// PWM parameters
+#define PWM_MAX       999
+#define BASE_SPEED    430
+#define MIN_RUN_SPEED 260
+#define TURN_SLOWDOWN 38
+#define SEARCH_SPEED  320
+
+// Open-loop trim for motors without encoders. Tune these on a straight line.
+#define LEFT_TRIM   0
+#define RIGHT_TRIM  0
 
 void motor_set(int16_t left, int16_t right);
 

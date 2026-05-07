@@ -20,5 +20,6 @@
 
 float trace_get_error(void);
 uint8_t trace_is_line_lost(void);
+float trace_get_last_error(void);
 
 #endif /* __TRACE_H */

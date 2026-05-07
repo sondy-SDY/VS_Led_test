@@ -58,6 +58,10 @@ static void MX_TIM3_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static float absf_local(float value)
+{
+  return (value < 0.0f) ? -value : value;
+}
 
 /* USER CODE END 0 */
 
@@ -103,10 +107,33 @@ int main(void)
   while (1)
   {
     float error = trace_get_error();
-    calc_pid(error, trace_is_line_lost());
+    uint8_t line_lost = trace_is_line_lost();
 
-    int16_t left  = (int16_t)(BASE_SPEED + get_pid_output());
-    int16_t right = (int16_t)(BASE_SPEED - get_pid_output());
+    if (line_lost)
+    {
+      float last_error = trace_get_last_error();
+      if (last_error >= 0.0f)
+      {
+        motor_set(SEARCH_SPEED, -SEARCH_SPEED);
+      }
+      else
+      {
+        motor_set(-SEARCH_SPEED, SEARCH_SPEED);
+      }
+      HAL_Delay(10);
+      continue;
+    }
+
+    calc_pid(error, line_lost);
+
+    int16_t base_speed = (int16_t)(BASE_SPEED - (absf_local(error) * TURN_SLOWDOWN));
+    if (base_speed < MIN_RUN_SPEED)
+    {
+      base_speed = MIN_RUN_SPEED;
+    }
+
+    int16_t left  = (int16_t)(base_speed + get_pid_output());
+    int16_t right = (int16_t)(base_speed - get_pid_output());
     motor_set(left, right);
 
     HAL_Delay(10);

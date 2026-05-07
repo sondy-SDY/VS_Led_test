@@ -35,3 +35,7 @@ float trace_get_error(void) {
 uint8_t trace_is_line_lost(void) {
     return line_lost;
 }
+
+float trace_get_last_error(void) {
+    return last_error;
+}

@@ -11,10 +11,16 @@ void calc_pid(float error, uint8_t line_lost) {
         integral += error;
         if (integral >  MAX_I) integral =  MAX_I;
         if (integral < -MAX_I) integral = -MAX_I;
+    } else {
+        integral = 0;
     }
 
-    float D = error - prev_error;
-    prev_error = error;
+    float D = 0;
+    if (!line_lost) {
+        D = error - prev_error;
+        prev_error = error;
+    }
+
     pid_val = KP * P + KI * integral + KD * D;
 }
 
