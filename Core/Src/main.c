@@ -63,6 +63,19 @@ static float absf_local(float value)
   return (value < 0.0f) ? -value : value;
 }
 
+static int16_t clamp_i16(int16_t value, int16_t min_value, int16_t max_value)
+{
+  if (value < min_value)
+  {
+    return min_value;
+  }
+  if (value > max_value)
+  {
+    return max_value;
+  }
+  return value;
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -107,7 +120,8 @@ int main(void)
   while (1)
   {
     float error = trace_get_error();
-    uint8_t line_lost = trace_is_line_lost();
+    const TraceState *trace = trace_get_state();
+    uint8_t line_lost = trace->line_lost;
 
     if (line_lost)
     {
@@ -126,14 +140,35 @@ int main(void)
 
     calc_pid(error, line_lost);
 
-    int16_t base_speed = (int16_t)(BASE_SPEED - (absf_local(error) * TURN_SLOWDOWN));
+    float abs_error = absf_local(error);
+    int16_t base_speed = (int16_t)(BASE_SPEED - (abs_error * TURN_SLOWDOWN));
+    if (trace->wide)
+    {
+      base_speed = CROSS_SPEED;
+    }
+    else if ((trace->count >= 3U) && (abs_error < 1.5f))
+    {
+      base_speed = MIN_RUN_SPEED;
+    }
+    else if (abs_error < 0.6f)
+    {
+      base_speed = MAX_RUN_SPEED;
+    }
+
     if (base_speed < MIN_RUN_SPEED)
     {
       base_speed = MIN_RUN_SPEED;
     }
+    if (base_speed > MAX_RUN_SPEED)
+    {
+      base_speed = MAX_RUN_SPEED;
+    }
 
     int16_t left  = (int16_t)(base_speed + get_pid_output());
     int16_t right = (int16_t)(base_speed - get_pid_output());
+    int16_t reverse_limit = (abs_error > 3.5f) ? -SEARCH_SPEED : 0;
+    left = clamp_i16(left, reverse_limit, PWM_MAX);
+    right = clamp_i16(right, reverse_limit, PWM_MAX);
     motor_set(left, right);
 
     HAL_Delay(10);

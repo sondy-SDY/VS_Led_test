@@ -22,6 +22,8 @@ void calc_pid(float error, uint8_t line_lost) {
     }
 
     pid_val = KP * P + KI * integral + KD * D;
+    if (pid_val > PID_OUTPUT_LIMIT) pid_val = PID_OUTPUT_LIMIT;
+    if (pid_val < -PID_OUTPUT_LIMIT) pid_val = -PID_OUTPUT_LIMIT;
 }
 
 float get_pid_output(void) {

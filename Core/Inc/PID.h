@@ -8,6 +8,7 @@
 #define KI    0.0f
 #define KD    55.0f
 #define MAX_I 80.0f
+#define PID_OUTPUT_LIMIT 620.0f
 
 void calc_pid(float error, uint8_t line_lost);
 float get_pid_output(void);

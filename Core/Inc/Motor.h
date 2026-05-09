@@ -17,14 +17,18 @@
 // PWM parameters
 #define PWM_MAX       999
 #define BASE_SPEED    430
+#define MAX_RUN_SPEED 520
 #define MIN_RUN_SPEED 260
+#define CROSS_SPEED   300
 #define TURN_SLOWDOWN 38
 #define SEARCH_SPEED  320
+#define MOTOR_PWM_STEP 120
 
 // Open-loop trim for motors without encoders. Tune these on a straight line.
 #define LEFT_TRIM   0
 #define RIGHT_TRIM  0
 
 void motor_set(int16_t left, int16_t right);
+void motor_stop(void);
 
 #endif /* __MOTOR_H */

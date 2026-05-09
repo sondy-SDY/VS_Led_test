@@ -18,8 +18,22 @@
 #define S5_PORT GPIOA
 #define S6_PORT GPIOA
 
+#define TRACE_SENSOR_COUNT 6U
+
+typedef struct {
+    uint8_t mask;       // bit0=S1 ... bit5=S6, 1=black line detected
+    uint8_t count;      // active sensor count
+    uint8_t line_lost;  // no sensor sees the line
+    uint8_t wide;       // crossing or very wide line
+    uint8_t split;      // non-contiguous black areas
+    float error;        // left negative, right positive
+} TraceState;
+
 float trace_get_error(void);
 uint8_t trace_is_line_lost(void);
 float trace_get_last_error(void);
+uint8_t trace_get_mask(void);
+uint8_t trace_get_count(void);
+const TraceState *trace_get_state(void);
 
 #endif /* __TRACE_H */
