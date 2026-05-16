@@ -2,6 +2,49 @@
 
 static TraceState state = {0};
 static float last_error = 0.0f;
+static uint8_t filter_level[TRACE_SENSOR_COUNT] = {0};
+static uint8_t stable_mask = 0;
+static uint8_t lost_hold_count = TRACE_LOST_HOLD_CYCLES;
+
+static uint8_t read_raw_mask(void)
+{
+    uint8_t mask = 0;
+
+    if (HAL_GPIO_ReadPin(S1_PORT, S1_PIN) == GPIO_PIN_SET) mask |= (uint8_t)(1U << 0);
+    if (HAL_GPIO_ReadPin(S2_PORT, S2_PIN) == GPIO_PIN_SET) mask |= (uint8_t)(1U << 1);
+    if (HAL_GPIO_ReadPin(S3_PORT, S3_PIN) == GPIO_PIN_SET) mask |= (uint8_t)(1U << 2);
+    if (HAL_GPIO_ReadPin(S4_PORT, S4_PIN) == GPIO_PIN_SET) mask |= (uint8_t)(1U << 3);
+    if (HAL_GPIO_ReadPin(S5_PORT, S5_PIN) == GPIO_PIN_SET) mask |= (uint8_t)(1U << 4);
+    if (HAL_GPIO_ReadPin(S6_PORT, S6_PIN) == GPIO_PIN_SET) mask |= (uint8_t)(1U << 5);
+
+    return mask;
+}
+
+static uint8_t filter_raw_mask(uint8_t raw_mask)
+{
+    uint8_t mask = stable_mask;
+
+    for (uint8_t i = 0; i < TRACE_SENSOR_COUNT; i++) {
+        uint8_t bit = (uint8_t)(1U << i);
+
+        if ((raw_mask & bit) != 0U) {
+            if (filter_level[i] < TRACE_FILTER_MAX) {
+                filter_level[i]++;
+            }
+        } else if (filter_level[i] > 0U) {
+            filter_level[i]--;
+        }
+
+        if (filter_level[i] >= TRACE_FILTER_ON_LEVEL) {
+            mask |= bit;
+        } else if (filter_level[i] <= TRACE_FILTER_OFF_LEVEL) {
+            mask &= (uint8_t)~bit;
+        }
+    }
+
+    stable_mask = mask;
+    return stable_mask;
+}
 
 static uint8_t count_black_groups(uint8_t mask)
 {
@@ -46,38 +89,35 @@ static int pick_error_from_mask(uint8_t mask, float reference_error)
 
 // 读取6路传感器，返回误差值 (权重: 左负右正)
 float trace_get_error(void) {
-    int s[TRACE_SENSOR_COUNT];
-    s[0] = (HAL_GPIO_ReadPin(S1_PORT, S1_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[1] = (HAL_GPIO_ReadPin(S2_PORT, S2_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[2] = (HAL_GPIO_ReadPin(S3_PORT, S3_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[3] = (HAL_GPIO_ReadPin(S4_PORT, S4_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[4] = (HAL_GPIO_ReadPin(S5_PORT, S5_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-    s[5] = (HAL_GPIO_ReadPin(S6_PORT, S6_PIN) == GPIO_PIN_RESET) ? 1 : 0;
-
     const int weights[TRACE_SENSOR_COUNT] = {-5, -3, -1, 1, 3, 5};
     int sum = 0;
     uint8_t count = 0;
-    uint8_t mask = 0;
+    uint8_t raw_mask = read_raw_mask();
+    uint8_t mask = filter_raw_mask(raw_mask);
 
     for (uint8_t i = 0; i < TRACE_SENSOR_COUNT; i++) {
-        if (s[i]) {
+        if ((mask & (uint8_t)(1U << i)) != 0U) {
             sum += weights[i];
             count++;
-            mask |= (uint8_t)(1U << i);
         }
     }
 
+    state.raw_mask = raw_mask;
     state.mask = mask;
     state.count = count;
     state.wide = 0;
     state.split = 0;
 
     if (count == 0) {
-        state.line_lost = 1;
+        if (lost_hold_count < TRACE_LOST_HOLD_CYCLES) {
+            lost_hold_count++;
+        }
+        state.line_lost = (lost_hold_count >= TRACE_LOST_HOLD_CYCLES) ? 1U : 0U;
         state.error = last_error;
         return last_error;
     }
 
+    lost_hold_count = 0;
     state.line_lost = 0;
 
     uint8_t groups = count_black_groups(mask);
@@ -100,6 +140,10 @@ uint8_t trace_is_line_lost(void) {
 
 float trace_get_last_error(void) {
     return last_error;
+}
+
+uint8_t trace_get_raw_mask(void) {
+    return state.raw_mask;
 }
 
 uint8_t trace_get_mask(void) {

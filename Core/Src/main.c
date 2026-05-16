@@ -33,6 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define TRACE_LOST_STOP_MS 350U
 
 /* USER CODE END PD */
 
@@ -45,6 +46,7 @@
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
+static uint32_t trace_lost_since = 0U;
 
 /* USER CODE END PV */
 
@@ -126,6 +128,20 @@ int main(void)
     if (line_lost)
     {
       float last_error = trace_get_last_error();
+      uint32_t now = HAL_GetTick();
+
+      if (trace_lost_since == 0U)
+      {
+        trace_lost_since = now;
+      }
+
+      if ((now - trace_lost_since) >= TRACE_LOST_STOP_MS)
+      {
+        motor_stop();
+        HAL_Delay(10);
+        continue;
+      }
+
       if (last_error >= 0.0f)
       {
         motor_set(SEARCH_SPEED, -SEARCH_SPEED);
@@ -138,6 +154,7 @@ int main(void)
       continue;
     }
 
+    trace_lost_since = 0U;
     calc_pid(error, line_lost);
 
     float abs_error = absf_local(error);
