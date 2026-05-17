@@ -33,7 +33,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define TRACE_LOST_STOP_MS 350U
+#define TRACE_LOST_STOP_MS   500U
+#define SEARCH_RAMP_MS       150U
+#define STARTUP_SETTLE_MS    200U
 
 /* USER CODE END PD */
 
@@ -47,6 +49,7 @@ TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 static uint32_t trace_lost_since = 0U;
+static uint8_t startup_done = 0U;
 
 /* USER CODE END PV */
 
@@ -115,6 +118,17 @@ int main(void)
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
 
+  // 启动稳定期：让传感器滤波器建立稳态
+  {
+    uint32_t settle_start = HAL_GetTick();
+    while ((HAL_GetTick() - settle_start) < STARTUP_SETTLE_MS) {
+      trace_get_error();
+      HAL_Delay(10);
+    }
+    startup_done = 1U;
+    pid_reset();
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -127,7 +141,7 @@ int main(void)
 
     if (line_lost)
     {
-      float last_error = trace_get_last_error();
+      float last_err = trace_get_last_error();
       uint32_t now = HAL_GetTick();
 
       if (trace_lost_since == 0U)
@@ -135,20 +149,30 @@ int main(void)
         trace_lost_since = now;
       }
 
-      if ((now - trace_lost_since) >= TRACE_LOST_STOP_MS)
+      uint32_t lost_duration = now - trace_lost_since;
+
+      if (lost_duration >= TRACE_LOST_STOP_MS)
       {
         motor_stop();
+        pid_reset();
         HAL_Delay(10);
         continue;
       }
 
-      if (last_error >= 0.0f)
+      // 渐进式搜索：速度随丢线时间增加
+      int16_t search_spd = (int16_t)(SEARCH_SPEED / 2);
+      if (lost_duration > SEARCH_RAMP_MS)
       {
-        motor_set(SEARCH_SPEED, -SEARCH_SPEED);
+        search_spd = SEARCH_SPEED;
+      }
+
+      if (last_err >= 0.0f)
+      {
+        motor_set(search_spd, -search_spd);
       }
       else
       {
-        motor_set(-SEARCH_SPEED, SEARCH_SPEED);
+        motor_set(-search_spd, search_spd);
       }
       HAL_Delay(10);
       continue;
@@ -158,7 +182,8 @@ int main(void)
     calc_pid(error, line_lost);
 
     float abs_error = absf_local(error);
-    int16_t base_speed = (int16_t)(BASE_SPEED - (abs_error * TURN_SLOWDOWN));
+    int16_t base_speed = (int16_t)(BASE_SPEED - (int16_t)(abs_error * TURN_SLOWDOWN));
+
     if (trace->wide)
     {
       base_speed = CROSS_SPEED;
@@ -181,11 +206,15 @@ int main(void)
       base_speed = MAX_RUN_SPEED;
     }
 
-    int16_t left  = (int16_t)(base_speed + get_pid_output());
-    int16_t right = (int16_t)(base_speed - get_pid_output());
-    int16_t reverse_limit = (abs_error > 3.5f) ? -SEARCH_SPEED : 0;
-    left = clamp_i16(left, reverse_limit, PWM_MAX);
+    float pid_out = get_pid_output();
+    int16_t left  = (int16_t)(base_speed + (int16_t)pid_out);
+    int16_t right = (int16_t)(base_speed - (int16_t)pid_out);
+
+    // 大误差时允许内侧轮反转实现原地转弯
+    int16_t reverse_limit = (abs_error > 3.0f) ? (int16_t)(-SEARCH_SPEED) : 0;
+    left  = clamp_i16(left,  reverse_limit, PWM_MAX);
     right = clamp_i16(right, reverse_limit, PWM_MAX);
+
     motor_set(left, right);
 
     HAL_Delay(10);

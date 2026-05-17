@@ -21,19 +21,23 @@
 #define TRACE_SENSOR_COUNT 6U
 
 typedef struct {
-    uint8_t mask;       // bit0=S1 ... bit5=S6, 1=black line detected
-    uint8_t raw_mask;   // unfiltered GPIO sample
-    uint8_t count;      // active sensor count
-    uint8_t line_lost;  // no sensor sees the line
-    uint8_t wide;       // crossing or very wide line
-    uint8_t split;      // non-contiguous black areas
-    float error;        // left negative, right positive
+    uint8_t mask;
+    uint8_t raw_mask;
+    uint8_t count;
+    uint8_t line_lost;
+    uint8_t wide;
+    uint8_t split;
+    float error;
 } TraceState;
 
-#define TRACE_FILTER_MAX       5U
-#define TRACE_FILTER_ON_LEVEL  4U
-#define TRACE_FILTER_OFF_LEVEL 1U
-#define TRACE_LOST_HOLD_CYCLES 3U
+// 无灯红外传感器需要更深的滤波深度
+#define TRACE_FILTER_MAX       8U
+#define TRACE_FILTER_ON_LEVEL  6U
+#define TRACE_FILTER_OFF_LEVEL 2U
+#define TRACE_LOST_HOLD_CYCLES 5U
+
+// 单次调用内多次采样取多数 (抗瞬态干扰)
+#define TRACE_OVERSAMPLE       3U
 
 float trace_get_error(void);
 uint8_t trace_is_line_lost(void);

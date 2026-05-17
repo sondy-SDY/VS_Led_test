@@ -20,6 +20,30 @@ static uint8_t read_raw_mask(void)
     return mask;
 }
 
+// 多次采样取多数决，抗无灯红外的瞬态噪声
+static uint8_t read_oversampled_mask(void)
+{
+    uint8_t vote[TRACE_SENSOR_COUNT] = {0};
+
+    for (uint8_t s = 0; s < TRACE_OVERSAMPLE; s++) {
+        uint8_t raw = read_raw_mask();
+        for (uint8_t i = 0; i < TRACE_SENSOR_COUNT; i++) {
+            if ((raw & (uint8_t)(1U << i)) != 0U) {
+                vote[i]++;
+            }
+        }
+    }
+
+    uint8_t threshold = (TRACE_OVERSAMPLE / 2U) + 1U;
+    uint8_t result = 0;
+    for (uint8_t i = 0; i < TRACE_SENSOR_COUNT; i++) {
+        if (vote[i] >= threshold) {
+            result |= (uint8_t)(1U << i);
+        }
+    }
+    return result;
+}
+
 static uint8_t filter_raw_mask(uint8_t raw_mask)
 {
     uint8_t mask = stable_mask;
@@ -87,12 +111,11 @@ static int pick_error_from_mask(uint8_t mask, float reference_error)
     return best_weight;
 }
 
-// 读取6路传感器，返回误差值 (权重: 左负右正)
 float trace_get_error(void) {
     const int weights[TRACE_SENSOR_COUNT] = {-5, -3, -1, 1, 3, 5};
     int sum = 0;
     uint8_t count = 0;
-    uint8_t raw_mask = read_raw_mask();
+    uint8_t raw_mask = read_oversampled_mask();
     uint8_t mask = filter_raw_mask(raw_mask);
 
     for (uint8_t i = 0; i < TRACE_SENSOR_COUNT; i++) {
@@ -124,11 +147,15 @@ float trace_get_error(void) {
     state.split = (groups >= 2U) ? 1U : 0U;
     state.wide = (count >= 4U) ? 1U : 0U;
 
+    float new_error;
     if (state.split) {
-        last_error = (float)pick_error_from_mask(mask, last_error);
+        new_error = (float)pick_error_from_mask(mask, last_error);
     } else {
-        last_error = (float)sum / count;
+        new_error = (float)sum / count;
     }
+
+    // 一阶低通滤波平滑误差输出 (alpha=0.6 新值权重)
+    last_error = 0.6f * new_error + 0.4f * last_error;
 
     state.error = last_error;
     return last_error;
